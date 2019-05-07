@@ -641,16 +641,11 @@ public class GsmCdmaPhone extends Phone {
         intent.putExtra(PhoneConstants.PHONE_IN_ECM_STATE, isInEcm());
         SubscriptionManager.putPhoneIdAndSubIdExtra(intent, getPhoneId());
         ActivityManager.broadcastStickyIntent(intent, UserHandle.USER_ALL);
-        logi("sendEmergencyCallbackModeChange");
+        if (DBG) logd("sendEmergencyCallbackModeChange");
     }
 
     @Override
     public void sendEmergencyCallStateChange(boolean callActive) {
-        if (!isPhoneTypeCdma()) {
-            // It possible that this method got called from ImsPhoneCallTracker#
-            logi("sendEmergencyCallbackModeChange - skip for non-cdma");
-            return;
-        }
         if (mBroadcastEmergencyCallStateChanges) {
             Intent intent = new Intent(TelephonyIntents.ACTION_EMERGENCY_CALL_STATE_CHANGED);
             intent.putExtra(PhoneConstants.PHONE_IN_EMERGENCY_CALL, callActive);
@@ -1405,7 +1400,7 @@ public class GsmCdmaPhone extends Phone {
             }
         }
 
-        if (TextUtils.isEmpty(number)) {
+        if (!isPhoneTypeGsm() && TextUtils.isEmpty(number)) {
             // Read platform settings for dynamic voicemail number
             CarrierConfigManager configManager = (CarrierConfigManager)
                     getContext().getSystemService(Context.CARRIER_CONFIG_SERVICE);
@@ -1413,7 +1408,7 @@ public class GsmCdmaPhone extends Phone {
             if (b != null && b.getBoolean(
                     CarrierConfigManager.KEY_CONFIG_TELEPHONY_USE_OWN_NUMBER_FOR_VOICEMAIL_BOOL)) {
                 number = getLine1Number();
-            } else if (!isPhoneTypeGsm()) {
+            } else {
                 number = "*86";
             }
         }
@@ -1610,13 +1605,6 @@ public class GsmCdmaPhone extends Phone {
             IccRecords r = mIccRecords.get();
             return (r != null) ? r.getMsisdnNumber() : null;
         } else {
-            CarrierConfigManager configManager = (CarrierConfigManager)
-                    mContext.getSystemService(Context.CARRIER_CONFIG_SERVICE);
-            boolean use_usim = configManager.getConfigForSubId(getSubId()).getBoolean(
-                    CarrierConfigManager.KEY_USE_USIM_BOOL);
-            if (use_usim) {
-                return (mSimRecords != null) ? mSimRecords.getMsisdnNumber() : null;
-            }
             return mSST.getMdnNumber();
         }
     }
@@ -2668,7 +2656,6 @@ public class GsmCdmaPhone extends Phone {
                 }
                 mUiccApplication.set(newUiccApplication);
                 mIccRecords.set(newUiccApplication.getIccRecords());
-                logd("mIccRecords = " + mIccRecords);
                 registerForIccRecordEvents();
                 mIccPhoneBookIntManager.updateIccRecords(mIccRecords.get());
             }
@@ -3283,7 +3270,7 @@ public class GsmCdmaPhone extends Phone {
         }
     }
 
-    protected void phoneObjectUpdater(int newVoiceRadioTech) {
+    private void phoneObjectUpdater(int newVoiceRadioTech) {
         logd("phoneObjectUpdater: newVoiceRadioTech=" + newVoiceRadioTech);
 
         // Check for a voice over lte replacement
@@ -3468,8 +3455,6 @@ public class GsmCdmaPhone extends Phone {
         pw.println("GsmCdmaPhone extends:");
         super.dump(fd, pw, args);
         pw.println(" mPrecisePhoneType=" + mPrecisePhoneType);
-        pw.println(" mSimRecords=" + mSimRecords);
-        pw.println(" mIsimUiccRecords=" + mIsimUiccRecords);
         pw.println(" mCT=" + mCT);
         pw.println(" mSST=" + mSST);
         pw.println(" mPendingMMIs=" + mPendingMMIs);
@@ -3525,8 +3510,7 @@ public class GsmCdmaPhone extends Phone {
     /**
      * @return operator numeric.
      */
-    @Override
-    public String getOperatorNumeric() {
+    private String getOperatorNumeric() {
         String operatorNumeric = null;
         if (isPhoneTypeGsm()) {
             IccRecords r = mIccRecords.get();

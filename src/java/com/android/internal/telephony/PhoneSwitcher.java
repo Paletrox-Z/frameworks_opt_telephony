@@ -57,32 +57,29 @@ import java.util.List;
  * the active phones.  Note we don't wait for data attach (which may not happen anyway).
  */
 public class PhoneSwitcher extends Handler {
-    protected final static String LOG_TAG = "PhoneSwitcher";
-    protected final static boolean VDBG = false;
+    private final static String LOG_TAG = "PhoneSwitcher";
+    private final static boolean VDBG = false;
 
-    protected int mMaxActivePhones;
-    protected final List<DcRequest> mPrioritizedDcRequests = new ArrayList<DcRequest>();
-    protected final RegistrantList[] mActivePhoneRegistrants;
-    protected final SubscriptionController mSubscriptionController;
-    protected final int[] mPhoneSubscriptions;
-    protected final CommandsInterface[] mCommandsInterfaces;
-    protected final Context mContext;
-    protected final PhoneState[] mPhoneStates;
-    protected final int mNumPhones;
+    private final int mMaxActivePhones;
+    private final List<DcRequest> mPrioritizedDcRequests = new ArrayList<DcRequest>();
+    private final RegistrantList[] mActivePhoneRegistrants;
+    private final SubscriptionController mSubscriptionController;
+    private final int[] mPhoneSubscriptions;
+    private final CommandsInterface[] mCommandsInterfaces;
+    private final Context mContext;
+    private final PhoneState[] mPhoneStates;
+    private final int mNumPhones;
     private final Phone[] mPhones;
     private final LocalLog mLocalLog;
 
-    protected int mDefaultDataSubscription;
+    private int mDefaultDataSubscription;
 
-    protected final static int EVENT_DEFAULT_SUBSCRIPTION_CHANGED = 101;
-    protected final static int EVENT_SUBSCRIPTION_CHANGED         = 102;
+    private final static int EVENT_DEFAULT_SUBSCRIPTION_CHANGED = 101;
+    private final static int EVENT_SUBSCRIPTION_CHANGED         = 102;
     private final static int EVENT_REQUEST_NETWORK              = 103;
     private final static int EVENT_RELEASE_NETWORK              = 104;
     private final static int EVENT_EMERGENCY_TOGGLE             = 105;
     private final static int EVENT_RESEND_DATA_ALLOWED          = 106;
-    protected final static int EVENT_VOICE_CALL_ENDED           = 107;
-    protected static final int EVENT_UNSOL_MAX_DATA_ALLOWED_CHANGED = 108;
-    protected static final int EVENT_OEM_HOOK_SERVICE_READY     = 109;
 
     private final static int MAX_LOCAL_LOG_LINES = 30;
 
@@ -207,7 +204,7 @@ public class PhoneSwitcher extends Handler {
         }
     }
 
-    protected boolean isEmergency() {
+    private boolean isEmergency() {
         for (Phone p : mPhones) {
             if (p == null) continue;
             if (p.isInEcm() || p.isInEmergencyCall()) return true;
@@ -258,7 +255,7 @@ public class PhoneSwitcher extends Handler {
     }
 
     private static final boolean REQUESTS_CHANGED   = true;
-    protected static final boolean REQUESTS_UNCHANGED = false;
+    private static final boolean REQUESTS_UNCHANGED = false;
     /**
      * Re-evaluate things.
      * Do nothing if nothing's changed.
@@ -268,7 +265,7 @@ public class PhoneSwitcher extends Handler {
      * phones that aren't in the active phone list.  Finally, activate all
      * phones in the active phone list.
      */
-    protected void onEvaluate(boolean requestsChanged, String reason) {
+    private void onEvaluate(boolean requestsChanged, String reason) {
         StringBuilder sb = new StringBuilder(reason);
         if (isEmergency()) {
             log("onEvalute aborted due to Emergency");
@@ -329,12 +326,12 @@ public class PhoneSwitcher extends Handler {
         }
     }
 
-    protected static class PhoneState {
+    private static class PhoneState {
         public volatile boolean active = false;
         public long lastRequested = 0;
     }
 
-    protected void deactivate(int phoneId) {
+    private void deactivate(int phoneId) {
         PhoneState state = mPhoneStates[phoneId];
         if (state.active == false) return;
         state.active = false;
@@ -347,7 +344,7 @@ public class PhoneSwitcher extends Handler {
         mActivePhoneRegistrants[phoneId].notifyRegistrants();
     }
 
-    protected void activate(int phoneId) {
+    private void activate(int phoneId) {
         PhoneState state = mPhoneStates[phoneId];
         if (state.active == true) return;
         state.active = true;
@@ -369,7 +366,7 @@ public class PhoneSwitcher extends Handler {
         msg.sendToTarget();
     }
 
-    protected void onResendDataAllowed(Message msg) {
+    private void onResendDataAllowed(Message msg) {
         final int phoneId = msg.arg1;
         // Skip ALLOW_DATA for single SIM device
         if (mNumPhones > 1) {
@@ -377,7 +374,7 @@ public class PhoneSwitcher extends Handler {
         }
     }
 
-    protected int phoneIdForRequest(NetworkRequest netRequest) {
+    private int phoneIdForRequest(NetworkRequest netRequest) {
         NetworkSpecifier specifier = netRequest.networkCapabilities.getNetworkSpecifier();
         int subId;
 
@@ -430,7 +427,7 @@ public class PhoneSwitcher extends Handler {
         }
     }
 
-    protected void log(String l) {
+    private void log(String l) {
         Rlog.d(LOG_TAG, l);
         mLocalLog.log(l);
     }

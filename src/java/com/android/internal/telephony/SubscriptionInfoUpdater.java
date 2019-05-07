@@ -108,7 +108,7 @@ public class SubscriptionInfoUpdater extends Handler {
 
     private static Phone[] mPhone;
     private static Context mContext = null;
-    protected static String mIccId[] = new String[PROJECT_SIM_NUM];
+    private static String mIccId[] = new String[PROJECT_SIM_NUM];
     private static int[] mInsertSimState = new int[PROJECT_SIM_NUM];
     private static int[] sSimCardState = new int[PROJECT_SIM_NUM];
     private static int[] sSimApplicationState = new int[PROJECT_SIM_NUM];
@@ -201,7 +201,7 @@ public class SubscriptionInfoUpdater extends Handler {
         }
     }
 
-    protected boolean isAllIccIdQueryDone() {
+    private boolean isAllIccIdQueryDone() {
         for (int i = 0; i < PROJECT_SIM_NUM; i++) {
             if (mIccId[i] == null) {
                 logd("Wait for SIM" + (i + 1) + " IccId");
@@ -302,7 +302,7 @@ public class SubscriptionInfoUpdater extends Handler {
         sendMessage(obtainMessage(EVENT_REFRESH_EMBEDDED_SUBSCRIPTIONS, callback));
     }
 
-    protected void handleSimLocked(int slotId, String reason) {
+    private void handleSimLocked(int slotId, String reason) {
         if (mIccId[slotId] != null && mIccId[slotId].equals(ICCID_STRING_FOR_NO_SIM)) {
             logd("SIM" + (slotId + 1) + " hot plug in");
             mIccId[slotId] = null;
@@ -355,7 +355,7 @@ public class SubscriptionInfoUpdater extends Handler {
         }
     }
 
-    protected void handleSimLoaded(int slotId) {
+    private void handleSimLoaded(int slotId) {
         logd("handleSimLoaded: slotId: " + slotId);
 
         // The SIM should be loaded at this state, but it is possible in cases such as SIM being
@@ -382,10 +382,12 @@ public class SubscriptionInfoUpdater extends Handler {
             updateSubscriptionInfoByIccId();
             int[] subIds = mSubscriptionManager.getActiveSubscriptionIdList();
             for (int subId : subIds) {
-                slotId = SubscriptionController.getInstance().getPhoneId(subId);
-                String operator = mPhone[slotId].getOperatorNumeric();
+                TelephonyManager tm = TelephonyManager.getDefault();
 
-                if (operator != null && !TextUtils.isEmpty(operator)) {
+                String operator = tm.getSimOperatorNumeric(subId);
+                slotId = SubscriptionController.getInstance().getPhoneId(subId);
+
+                if (!TextUtils.isEmpty(operator)) {
                     if (subId == SubscriptionController.getInstance().getDefaultSubId()) {
                         MccTable.updateMccMncConfiguration(mContext, operator, false);
                     }
@@ -394,7 +396,6 @@ public class SubscriptionInfoUpdater extends Handler {
                     logd("EVENT_RECORDS_LOADED Operator name is null");
                 }
 
-                TelephonyManager tm = TelephonyManager.getDefault();
                 String msisdn = tm.getLine1Number(subId);
                 ContentResolver contentResolver = mContext.getContentResolver();
 
@@ -411,7 +412,7 @@ public class SubscriptionInfoUpdater extends Handler {
                     if (!TextUtils.isEmpty(simCarrierName)) {
                         nameToSet = simCarrierName;
                     } else {
-                        nameToSet = "SIM " + Integer.toString(slotId + 1);
+                        nameToSet = "CARD " + Integer.toString(slotId + 1);
                     }
                     logd("sim name = " + nameToSet);
                     SubscriptionController.getInstance().setDisplayName(nameToSet, subId);
@@ -479,9 +480,9 @@ public class SubscriptionInfoUpdater extends Handler {
         mCarrierServiceBindHelper.updateForPhoneId(slotId, simState);
     }
 
-    protected void handleSimAbsent(int slotId) {
+    private void handleSimAbsent(int slotId) {
         if (mIccId[slotId] != null && !mIccId[slotId].equals(ICCID_STRING_FOR_NO_SIM)) {
-            logd("SIM" + (slotId + 1) + " hot plug out or error.");
+            logd("SIM" + (slotId + 1) + " hot plug out");
         }
         mIccId[slotId] = ICCID_STRING_FOR_NO_SIM;
         if (isAllIccIdQueryDone()) {
@@ -493,7 +494,7 @@ public class SubscriptionInfoUpdater extends Handler {
         broadcastSimApplicationStateChanged(slotId, TelephonyManager.SIM_STATE_NOT_READY);
     }
 
-    protected void handleSimError(int slotId) {
+    private void handleSimError(int slotId) {
         if (mIccId[slotId] != null && !mIccId[slotId].equals(ICCID_STRING_FOR_NO_SIM)) {
             logd("SIM" + (slotId + 1) + " Error ");
         }
@@ -512,7 +513,7 @@ public class SubscriptionInfoUpdater extends Handler {
      * TODO: Simplify more, as no one is interested in what happened
      * only what the current list contains.
      */
-    synchronized protected void updateSubscriptionInfoByIccId() {
+    synchronized private void updateSubscriptionInfoByIccId() {
         logd("updateSubscriptionInfoByIccId:+ Start");
 
         for (int i = 0; i < PROJECT_SIM_NUM; i++) {

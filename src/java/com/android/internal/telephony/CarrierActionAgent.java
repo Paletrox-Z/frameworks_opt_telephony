@@ -217,7 +217,7 @@ public class CarrierActionAgent extends Handler {
         sendMessage(obtainMessage(CARRIER_ACTION_REPORT_DEFAULT_NETWORK_STATUS, report));
     }
 
-    public void carrierActionReset() {
+    private void carrierActionReset() {
         carrierActionReportDefaultNetworkStatus(false);
         carrierActionSetMeteredApnsEnabled(true);
         carrierActionSetRadioEnabled(true);

@@ -101,9 +101,6 @@ import com.android.internal.telephony.nano.TelephonyProto.TelephonyCallSession;
 import com.android.internal.telephony.nano.TelephonyProto.TelephonyCallSession.Event.ImsCommand;
 import com.android.server.net.NetworkStatsService;
 
-import org.codeaurora.ims.QtiCallConstants;
-import org.codeaurora.ims.utils.QtiImsExtUtils;
-
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -1216,7 +1213,6 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                 // being sent to the lower layers/to the network.
             }
 
-            profile = setRttModeBasedOnOperator(profile);
             ImsCall imsCall = mImsManager.makeCall(profile, callees, mImsCallListener);
             conn.setImsCall(imsCall);
 
@@ -1249,7 +1245,6 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
             throw new CallStateException("cannot accept call");
         }
 
-        ImsStreamMediaProfile mediaProfile = new ImsStreamMediaProfile();
         if ((mRingingCall.getState() == ImsPhoneCall.State.WAITING)
                 && mForegroundCall.getState().isAlive()) {
             setMute(false);
@@ -1269,9 +1264,7 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                 // We need to disconnect the foreground call before answering the background call.
                 mForegroundCall.hangup();
                 try {
-                    mediaProfile = addRttAttributeIfRequired(ringingCall, mediaProfile);
-                    ringingCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState),
-                            mediaProfile);
+                    ringingCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState));
                 } catch (ImsException e) {
                     throw new CallStateException("cannot accept call");
                 }
@@ -1285,9 +1278,7 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
             try {
                 ImsCall imsCall = mRingingCall.getImsCall();
                 if (imsCall != null) {
-                    mediaProfile = addRttAttributeIfRequired(imsCall, mediaProfile);
-                    imsCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState),
-                            mediaProfile);
+                    imsCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState));
                     mMetrics.writeOnImsCommand(mPhone.getPhoneId(), imsCall.getSession(),
                             ImsCommand.IMS_CMD_ACCEPT);
                 } else {
@@ -1755,12 +1746,8 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                 //accept waiting call after holding background call
                 ImsCall imsCall = mRingingCall.getImsCall();
                 if (imsCall != null) {
-                    ImsStreamMediaProfile mediaProfile = new ImsStreamMediaProfile();
-                    mediaProfile = addRttAttributeIfRequired(imsCall, mediaProfile);
-
                     imsCall.accept(
-                            ImsCallProfile.getCallTypeFromVideoState(mPendingCallVideoState),
-                            mediaProfile);
+                        ImsCallProfile.getCallTypeFromVideoState(mPendingCallVideoState));
                     mMetrics.writeOnImsCommand(mPhone.getPhoneId(), imsCall.getSession(),
                             ImsCommand.IMS_CMD_ACCEPT);
                 }
@@ -1950,11 +1937,9 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
     @VisibleForTesting
     public int maybeRemapReasonCode(ImsReasonInfo reasonInfo) {
         int code = reasonInfo.getCode();
-        String extraMessage =
-                reasonInfo.getExtraMessage() == null ? "" : reasonInfo.getExtraMessage();
 
-        Pair<Integer, String> toCheck = new Pair<>(code, extraMessage);
-        Pair<Integer, String> wildcardToCheck = new Pair<>(null, extraMessage);
+        Pair<Integer, String> toCheck = new Pair<>(code, reasonInfo.getExtraMessage());
+        Pair<Integer, String> wildcardToCheck = new Pair<>(null, reasonInfo.getExtraMessage());
         if (mImsReasonCodeMap.containsKey(toCheck)) {
             int toCode = mImsReasonCodeMap.get(toCheck);
 
@@ -2008,7 +1993,6 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                 return DisconnectCause.INCOMING_REJECTED;
 
             case ImsReasonInfo.CODE_USER_TERMINATED_BY_REMOTE:
-            case ImsReasonInfo.CODE_SIP_USER_REJECTED:
                 return DisconnectCause.NORMAL;
 
             case ImsReasonInfo.CODE_SIP_FORBIDDEN:
@@ -2017,15 +2001,14 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
             case ImsReasonInfo.CODE_SIP_REDIRECTED:
             case ImsReasonInfo.CODE_SIP_BAD_REQUEST:
             case ImsReasonInfo.CODE_SIP_NOT_ACCEPTABLE:
+            case ImsReasonInfo.CODE_SIP_USER_REJECTED:
             case ImsReasonInfo.CODE_SIP_GLOBAL_ERROR:
                 return DisconnectCause.SERVER_ERROR;
 
             case ImsReasonInfo.CODE_SIP_SERVICE_UNAVAILABLE:
+            case ImsReasonInfo.CODE_SIP_NOT_FOUND:
             case ImsReasonInfo.CODE_SIP_SERVER_ERROR:
                 return DisconnectCause.SERVER_UNREACHABLE;
-
-            case ImsReasonInfo.CODE_SIP_NOT_FOUND:
-                return DisconnectCause.INVALID_NUMBER;
 
             case ImsReasonInfo.CODE_LOCAL_NETWORK_ROAMING:
             case ImsReasonInfo.CODE_LOCAL_NETWORK_IP_CHANGED:
@@ -2667,20 +2650,9 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
         @Override
         public void onCallHandover(ImsCall imsCall, int srcAccessTech, int targetAccessTech,
             ImsReasonInfo reasonInfo) {
-            // Check with the DCTracker to see if data is enabled; there may be a case when
-            // ImsPhoneCallTracker isn't being informed of the right data enabled state via its
-            // registration, so we'll refresh now.
-            boolean isDataEnabled = mPhone.getDefaultPhone().mDcTracker.isDataEnabled();
             if (DBG) {
-                log("onCallHandover ::  srcAccessTech=" + srcAccessTech + ", targetAccessTech="
-                        + targetAccessTech + ", reasonInfo=" + reasonInfo + ", dataEnabled="
-                        + mIsDataEnabled + "/" + isDataEnabled + ", dataMetered="
-                        + mIsViLteDataMetered);
-            }
-            if (mIsDataEnabled != isDataEnabled) {
-                loge("onCallHandover: data enabled state doesn't match! (was=" + mIsDataEnabled
-                        + ", actually=" + isDataEnabled);
-                mIsDataEnabled = isDataEnabled;
+                log("onCallHandover ::  srcAccessTech=" + srcAccessTech + ", targetAccessTech=" +
+                        targetAccessTech + ", reasonInfo=" + reasonInfo);
             }
 
             // Only consider it a valid handover to WIFI if the source radio tech is known.
@@ -2717,7 +2689,7 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                 }
 
                 if (isHandoverFromWifi && imsCall.isVideoCall()) {
-                    if (mNotifyHandoverVideoFromWifiToLTE && mIsDataEnabled) {
+                    if (mNotifyHandoverVideoFromWifiToLTE &&    mIsDataEnabled) {
                         if (conn.getDisconnectCause() == DisconnectCause.NOT_DISCONNECTED) {
                             log("onCallHandover :: notifying of WIFI to LTE handover.");
                             conn.onConnectionEvent(
@@ -2734,7 +2706,6 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
                     if (!mIsDataEnabled && mIsViLteDataMetered) {
                         // Call was downgraded from WIFI to LTE and data is metered; downgrade the
                         // call now.
-                        log("onCallHandover :: data is not enabled; attempt to downgrade.");
                         downgradeVideoCall(ImsReasonInfo.CODE_WIFI_LOST, conn);
                     }
                 }
@@ -3771,21 +3742,16 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
             if (conn.hasCapabilities(
                     Connection.Capability.SUPPORTS_DOWNGRADE_TO_VOICE_LOCAL |
                             Connection.Capability.SUPPORTS_DOWNGRADE_TO_VOICE_REMOTE)) {
-                log("downgradeVideoCall :: callId=" + conn.getTelecomCallId()
-                        + " Downgrade to audio");
+
                 // If the carrier supports downgrading to voice, then we can simply issue a
                 // downgrade to voice instead of terminating the call.
                 modifyVideoCall(imsCall, VideoProfile.STATE_AUDIO_ONLY);
             } else if (mSupportPauseVideo && reasonCode != ImsReasonInfo.CODE_WIFI_LOST) {
                 // The carrier supports video pause signalling, so pause the video if we didn't just
                 // lose wifi; in that case just disconnect.
-                log("downgradeVideoCall :: callId=" + conn.getTelecomCallId()
-                        + " Pause audio");
                 mShouldUpdateImsConfigOnDisconnect = true;
                 conn.pauseVideo(VideoPauseTracker.SOURCE_DATA_ENABLED);
             } else {
-                log("downgradeVideoCall :: callId=" + conn.getTelecomCallId()
-                        + " Disconnect call.");
                 // At this point the only choice we have is to terminate the call.
                 try {
                     imsCall.terminate(ImsReasonInfo.CODE_USER_TERMINATED, reasonCode);
@@ -3963,43 +3929,5 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
     @VisibleForTesting
     public void setAlwaysPlayRemoteHoldTone(boolean shouldPlayRemoteHoldTone) {
         mAlwaysPlayRemoteHoldTone = shouldPlayRemoteHoldTone;
-    }
-
-    // Update the Rtt attribute
-    private ImsCallProfile setRttModeBasedOnOperator(ImsCallProfile profile) {
-        if (!mPhone.canProcessRttRequest()) {
-            return profile;
-        }
-
-        int mode = QtiImsExtUtils.getRttOperatingMode(mPhone.getContext());
-
-        if (DBG) log("RTT: setRttModeBasedOnOperator mode = " + mode);
-
-        if (!QtiImsExtUtils.isRttSupportedOnVtCalls(mPhone.getPhoneId(), mPhone.getContext()) &&
-                profile.isVideoCall()) {
-            return profile;
-        }
-
-        profile.mMediaProfile.setRttMode(mode);
-        return profile;
-    }
-
-    // Accept the call as RTT if incoming call as RTT attribute set
-    private ImsStreamMediaProfile addRttAttributeIfRequired(ImsCall call,
-            ImsStreamMediaProfile mediaProfile) {
-
-        if (!mPhone.canProcessRttRequest()) {
-            return mediaProfile;
-        }
-
-        ImsCallProfile profile = call.getCallProfile();
-        if (profile.mMediaProfile != null && profile.mMediaProfile.isRttCall() &&
-                (mPhone.isRttVtCallAllowed(call))) {
-            if (DBG) log("RTT: addRttAttributeIfRequired = " + profile.mMediaProfile.isRttCall());
-            // If RTT UI option is on, then incoming RTT call should always be accepted
-            // as RTT, irrespective of Modes
-            mediaProfile.setRttMode(ImsStreamMediaProfile.RTT_MODE_FULL);
-        }
-        return mediaProfile;
     }
 }

@@ -54,11 +54,6 @@ public class SmsSessionEventBuilder {
         return this;
     }
 
-    public SmsSessionEventBuilder setImsServiceErrno(int errno) {
-        mEvent.imsError = errno;
-        return this;
-    }
-
     public SmsSessionEventBuilder setSettings(TelephonySettings settings) {
         mEvent.settings = settings;
         return this;
